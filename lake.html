@@ -1,0 +1,1131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lake Monitoring Dashboard - Bon Echo Provincial Park</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+  
+  <style>
+    * { 
+      box-sizing: border-box; 
+      margin: 0; 
+      padding: 0; 
+    }
+    
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+    }
+
+    .header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+      color: #2E7D32;
+      font-size: 2.5em;
+      margin-bottom: 5px;
+    }
+
+    .header p {
+      color: #666;
+      font-size: 1.1em;
+    }
+
+    /* Lake Selection View */
+    .lake-selection {
+      padding: 40px 20px;
+      min-height: calc(100vh - 120px);
+    }
+
+    .lake-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .lake-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 25px;
+      cursor: pointer;
+      text-align: center;
+      box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .lake-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(135deg, #4CAF50, #2E7D32);
+    }
+
+    .lake-card:hover {
+      transform: translateY(-8px) scale(1.02);
+      box-shadow: 0 15px 35px rgba(0,0,0,0.2);
+    }
+
+    .lake-card h3 {
+      color: #2E7D32;
+      margin-bottom: 15px;
+      font-size: 1.3em;
+    }
+
+    .lake-card-stats {
+      display: flex;
+      justify-content: space-around;
+      margin-top: 15px;
+    }
+
+    .lake-stat {
+      text-align: center;
+    }
+
+    .lake-stat-number {
+      font-size: 1.5em;
+      font-weight: bold;
+      color: #4CAF50;
+    }
+
+    .lake-stat-label {
+      font-size: 0.8em;
+      color: #666;
+      margin-top: 2px;
+    }
+
+    /* Dashboard View */
+    .dashboard-view {
+      display: none;
+      min-height: 100vh;
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .dashboard-header {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+    }
+
+    .dashboard-title {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .dashboard-title h2 {
+      color: #2E7D32;
+      font-size: 1.8em;
+    }
+
+    .back-btn {
+      background: linear-gradient(135deg, #f44336, #d32f2f);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .back-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+    }
+
+    /* KPI Dashboard */
+    .kpi-dashboard {
+      padding: 20px;
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .kpi-card {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 20px 25px;
+      border-radius: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+      text-align: center;
+      min-width: 150px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: var(--kpi-color, #4CAF50);
+    }
+
+    .kpi-value {
+      font-size: 2.2em;
+      font-weight: bold;
+      color: var(--kpi-color, #4CAF50);
+      margin-bottom: 5px;
+    }
+
+    .kpi-label {
+      font-size: 0.9em;
+      color: #666;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .kpi-change {
+      font-size: 0.8em;
+      margin-top: 5px;
+      padding: 2px 8px;
+      border-radius: 10px;
+      font-weight: 600;
+    }
+
+    .kpi-change.positive {
+      background: rgba(76, 175, 80, 0.1);
+      color: #4CAF50;
+    }
+
+    .kpi-change.negative {
+      background: rgba(244, 67, 54, 0.1);
+      color: #f44336;
+    }
+
+    /* Filters */
+    .filters-section {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+
+    .filters-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 15px;
+    }
+
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .filter-group label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 5px;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      padding: 10px;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    .filter-group input:focus,
+    .filter-group select:focus {
+      outline: none;
+      border-color: #4CAF50;
+    }
+
+    .filter-actions {
+      display: flex;
+      gap: 10px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, #4CAF50, #45a049);
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 25px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    }
+
+    .btn.secondary {
+      background: linear-gradient(135deg, #2196F3, #1976D2);
+    }
+
+    .btn.success {
+      background: linear-gradient(135deg, #FF9800, #F57C00);
+    }
+
+    /* Content Layout */
+    .dashboard-content {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      padding: 20px;
+    }
+
+    .map-section,
+    .charts-section {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+
+    .map-section h3,
+    .charts-section h3 {
+      color: #2E7D32;
+      margin-bottom: 15px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #map {
+      height: 400px;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+
+    .chart-container {
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      padding: 15px;
+      height: 350px;
+    }
+
+    /* Additional Charts Section - Now has 3 charts in a row */
+    .additional-charts {
+      grid-column: 1 / -1;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+
+    .additional-charts h3 {
+      color: #2E7D32;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .advanced-charts-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+
+    /* Temperature vs Depth section - moved below */
+    .temp-depth-section {
+      grid-column: 1 / -1;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+    }
+
+    .temp-depth-section h3 {
+      color: #2E7D32;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Data Table */
+    .data-table-section {
+      grid-column: 1 / -1;
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(10px);
+      border-radius: 16px;
+      padding: 20px;
+      margin-top: 20px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.1);
+      max-height: 400px;
+      overflow-y: auto;
+    }
+
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9em;
+    }
+
+    .data-table th,
+    .data-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid #ddd;
+    }
+
+    .data-table th {
+      background: #f5f5f5;
+      font-weight: 600;
+      color: #333;
+      position: sticky;
+      top: 0;
+    }
+
+    .data-table tr:hover {
+      background: rgba(76, 175, 80, 0.05);
+    }
+
+    /* Responsive Design */
+    @media (max-width: 1024px) {
+      .dashboard-content {
+        grid-template-columns: 1fr;
+      }
+      
+      .advanced-charts-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .kpi-dashboard {
+        padding: 15px;
+        gap: 15px;
+      }
+      
+      .kpi-card {
+        min-width: 120px;
+        padding: 15px 20px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      .lake-grid {
+        grid-template-columns: 1fr;
+        padding: 0 10px;
+      }
+      
+      .dashboard-header {
+        flex-direction: column;
+        gap: 15px;
+        text-align: center;
+      }
+      
+      .filters-grid {
+        grid-template-columns: 1fr;
+      }
+      
+      .filter-actions {
+        flex-direction: column;
+        align-items: center;
+      }
+      
+      .header h1 {
+        font-size: 2em;
+      }
+
+      .advanced-charts-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    /* Loading Animation */
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 200px;
+      font-size: 1.2em;
+      color: #666;
+    }
+
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #4CAF50;
+      border-radius: 50%;
+      width: 30px;
+      height: 30px;
+      animation: spin 1s linear infinite;
+      margin-right: 10px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1><i class="fas fa-water"></i> Lake Monitoring Dashboard</h1>
+    <p>Bon Echo Provincial Park - Water Quality Analysis</p>
+  </div>
+
+  <!-- Lake Selection View -->
+  <div class="lake-selection" id="lakeSelection">
+    <div class="loading" id="loadingIndicator">
+      <div class="spinner"></div>
+      Loading lake data...
+    </div>
+    <div class="lake-grid" id="lakeGrid" style="display: none;"></div>
+  </div>
+
+  <!-- Dashboard View -->
+  <div class="dashboard-view" id="dashboardView">
+    <div class="dashboard-header">
+      <div class="dashboard-title">
+        <i class="fas fa-tint" style="font-size: 2em; color: #4CAF50;"></i>
+        <h2 id="lakeTitle">Lake Dashboard</h2>
+      </div>
+      <button class="back-btn" onclick="resetDashboard()">
+        <i class="fas fa-arrow-left"></i> Back to Lakes
+      </button>
+    </div>
+
+    <!-- KPI Dashboard -->
+    <div class="kpi-dashboard" id="kpiDashboard"></div>
+
+    <!-- Main Content -->
+    <div class="dashboard-content">
+      <!-- Map Section -->
+      <div class="map-section">
+        <h3><i class="fas fa-map-marker-alt"></i> Lake Location</h3>
+        <div id="map"></div>
+      </div>
+
+      <!-- Filters Section - moved to where temp vs depth was -->
+      <div class="filters-section">
+        <h3><i class="fas fa-sliders-h"></i> Data Filters</h3>
+        <div class="filters-grid">
+          <div class="filter-group">
+            <label for="depthFilter">Maximum Depth (m)</label>
+            <input type="number" id="depthFilter" placeholder="e.g., 10" step="0.1">
+          </div>
+          <div class="filter-group">
+            <label for="tempFilter">Temperature Range (°C)</label>
+            <input type="text" id="tempFilter" placeholder="e.g., 15-25">
+          </div>
+          <div class="filter-group">
+            <label for="oxygenFilter">Oxygen Range (mg/L)</label>
+            <input type="text" id="oxygenFilter" placeholder="e.g., 5-12">
+          </div>
+          <div class="filter-group">
+            <label for="phFilter">pH Range</label>
+            <input type="text" id="phFilter" placeholder="e.g., 6.5-8.5">
+          </div>
+        </div>
+        <div class="filter-actions">
+          <button class="btn" onclick="applyFilters()">
+            <i class="fas fa-filter"></i> Apply Filters
+          </button>
+          <button class="btn secondary" onclick="clearFilters()">
+            <i class="fas fa-eraser"></i> Clear Filters
+          </button>
+          <button class="btn success" onclick="downloadData()">
+            <i class="fas fa-download"></i> Download Data
+          </button>
+        </div>
+      </div>
+
+      <!-- Additional Charts - Now 3 charts in a row -->
+      <div class="additional-charts">
+        <h3><i class="fas fa-analytics"></i> Water Quality Analytics</h3>
+        <div class="advanced-charts-grid">
+          <div class="chart-container" id="oxygenChart"></div>
+          <div class="chart-container" id="tempChart"></div>
+          <div class="chart-container" id="correlationChart"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+
+  <script>
+    // Global variables
+    let globalData = [];
+    let currentLake = '';
+    let filteredData = [];
+    let map;
+
+    const csvUrl = "https://raw.githubusercontent.com/Arpan-shrma/iesf_datasets/refs/heads/main/iesf_dashboard_lake_testing.csv";
+    
+    const uniqueLakes = [
+      'Blue Seas South', 'Blue Seas North', 'Chain', 'Chain Lakes', 'Taits Lake',
+      'Woods Lake', 'Woods Lake Dam Outflow', 'Woods Lake SW Outflow',
+      'McFee Lake', 'Mcfee lake', 'McFee', 'Fish Lake', 'Jocko lake', 'Jocko Lake',
+      'Twomile Lake', 'South Lake', 'Buttermilk', 'Bea Lake', 'Dixon Lake',
+      'Hamm Lake', 'Mountain Lake'
+    ];
+
+    // Initialize the application
+    Papa.parse(csvUrl, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function(results) {
+        globalData = results.data.filter(d => 
+          !isNaN(d.latitude) && 
+          !isNaN(d.longitude) && 
+          d.waterbody_name
+        );
+        renderLakeCards();
+        document.getElementById('loadingIndicator').style.display = 'none';
+        document.getElementById('lakeGrid').style.display = 'grid';
+      },
+      error: function(error) {
+        console.error('Error loading data:', error);
+        document.getElementById('loadingIndicator').innerHTML = 
+          '<i class="fas fa-exclamation-triangle"></i> Error loading data. Please refresh the page.';
+      }
+    });
+
+    // Render lake selection cards
+    function renderLakeCards() {
+      const lakeGrid = document.getElementById('lakeGrid');
+      lakeGrid.innerHTML = '';
+
+      uniqueLakes.forEach(lake => {
+        const lakeData = globalData.filter(d => 
+          d.waterbody_name && 
+          d.waterbody_name.toLowerCase().trim() === lake.toLowerCase().trim()
+        );
+
+        if (lakeData.length === 0) return;
+
+        const card = document.createElement('div');
+        card.className = 'lake-card';
+        card.onclick = () => openLakeDashboard(lake);
+
+        const avgTemp = lakeData.reduce((sum, d) => sum + (d.water_temperature_c || 0), 0) / lakeData.length;
+        const maxDepth = Math.max(...lakeData.map(d => d.depth_m || 0));
+        const samples = lakeData.length;
+
+        card.innerHTML = `
+          <h3>${lake}</h3>
+          <i class="fas fa-water" style="font-size: 2em; color: #4CAF50; margin: 10px 0;"></i>
+          <div class="lake-card-stats">
+            <div class="lake-stat">
+              <div class="lake-stat-number">${samples}</div>
+              <div class="lake-stat-label">Samples</div>
+            </div>
+            <div class="lake-stat">
+              <div class="lake-stat-number">${avgTemp.toFixed(1)}°</div>
+              <div class="lake-stat-label">Avg Temp</div>
+            </div>
+            <div class="lake-stat">
+              <div class="lake-stat-number">${maxDepth.toFixed(1)}m</div>
+              <div class="lake-stat-label">Max Depth</div>
+            </div>
+          </div>
+        `;
+
+        lakeGrid.appendChild(card);
+      });
+    }
+
+    // Open lake dashboard
+    function openLakeDashboard(lakeName) {
+      document.getElementById('lakeSelection').style.display = 'none';
+      document.getElementById('dashboardView').style.display = 'block';
+      currentLake = lakeName;
+      document.getElementById('lakeTitle').textContent = lakeName;
+      
+      // Initialize map
+      setTimeout(() => {
+        initializeMap();
+        renderLakeData();
+      }, 100);
+    }
+
+    // Reset to lake selection
+    function resetDashboard() {
+      document.getElementById('dashboardView').style.display = 'none';
+      document.getElementById('lakeSelection').style.display = 'block';
+      
+      if (map) {
+        map.remove();
+        map = null;
+      }
+    }
+
+    // Initialize map
+    function initializeMap() {
+      if (map) {
+        map.remove();
+      }
+      
+      map = L.map('map').setView([45.0, -77.0], 10);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 18,
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+    }
+
+    // Get filtered data based on current filters
+    function getFilteredData() {
+      let data = globalData.filter(d => 
+        d.waterbody_name && 
+        d.waterbody_name.toLowerCase().trim() === currentLake.toLowerCase().trim() &&
+        !isNaN(d.water_temperature_c) && 
+        !isNaN(d.dissolved_oxygen_mg_l) && 
+        !isNaN(d.ph) && 
+        !isNaN(d.depth_m)
+      );
+
+      // Apply filters
+      const depthFilter = parseFloat(document.getElementById('depthFilter').value);
+      if (!isNaN(depthFilter)) {
+        data = data.filter(d => d.depth_m <= depthFilter);
+      }
+
+      const tempFilter = document.getElementById('tempFilter').value;
+      if (tempFilter) {
+        const [min, max] = tempFilter.split('-').map(v => parseFloat(v.trim()));
+        if (!isNaN(min) && !isNaN(max)) {
+          data = data.filter(d => d.water_temperature_c >= min && d.water_temperature_c <= max);
+        }
+      }
+
+      const oxygenFilter = document.getElementById('oxygenFilter').value;
+      if (oxygenFilter) {
+        const [min, max] = oxygenFilter.split('-').map(v => parseFloat(v.trim()));
+        if (!isNaN(min) && !isNaN(max)) {
+          data = data.filter(d => d.dissolved_oxygen_mg_l >= min && d.dissolved_oxygen_mg_l <= max);
+        }
+      }
+
+      const phFilter = document.getElementById('phFilter').value;
+      if (phFilter) {
+        const [min, max] = phFilter.split('-').map(v => parseFloat(v.trim()));
+        if (!isNaN(min) && !isNaN(max)) {
+          data = data.filter(d => d.ph >= min && d.ph <= max);
+        }
+      }
+
+      return data;
+    }
+
+    // Apply filters
+    function applyFilters() {
+      renderLakeData();
+    }
+
+    // Clear all filters
+    function clearFilters() {
+      document.getElementById('depthFilter').value = '';
+      document.getElementById('tempFilter').value = '';
+      document.getElementById('oxygenFilter').value = '';
+      document.getElementById('phFilter').value = '';
+      renderLakeData();
+    }
+
+    // Render all lake data and visualizations
+    function renderLakeData() {
+      filteredData = getFilteredData();
+      
+      if (filteredData.length === 0) {
+        alert('No data matches the current filters. Please adjust your criteria.');
+        return;
+      }
+
+      updateKPIs();
+      updateMap();
+      renderCharts();
+      //renderDataTable();
+    }
+
+    // Update KPI dashboard
+    function updateKPIs() {
+      const kpiContainer = document.getElementById('kpiDashboard');
+      
+      const avgTemp = filteredData.reduce((sum, d) => sum + d.water_temperature_c, 0) / filteredData.length;
+      const avgOxygen = filteredData.reduce((sum, d) => sum + d.dissolved_oxygen_mg_l, 0) / filteredData.length;
+      const avgPH = filteredData.reduce((sum, d) => sum + d.ph, 0) / filteredData.length;
+      const maxDepth = Math.max(...filteredData.map(d => d.depth_m));
+      const minDepth = Math.min(...filteredData.map(d => d.depth_m));
+      const samples = filteredData.length;
+
+      const kpis = [
+        { 
+          label: 'Samples', 
+          value: samples, 
+          color: '#4CAF50',
+          change: null,
+          icon: 'fas fa-vial'
+        },
+        { 
+          label: 'Avg Temperature', 
+          value: `${avgTemp.toFixed(1)}°C`, 
+          color: '#FF9800',
+          change: avgTemp > 20 ? { value: 'Warm', type: 'positive' } : { value: 'Cool', type: 'negative' },
+          icon: 'fas fa-thermometer-half'
+        },
+        { 
+          label: 'Avg Oxygen', 
+          value: `${avgOxygen.toFixed(1)} mg/L`, 
+          color: '#2196F3',
+          change: avgOxygen > 8 ? { value: 'Good', type: 'positive' } : { value: 'Low', type: 'negative' },
+          icon: 'fas fa-lungs'
+        },
+        { 
+          label: 'Avg pH', 
+          value: avgPH.toFixed(2), 
+          color: '#9C27B0',
+          change: (avgPH >= 6.5 && avgPH <= 8.5) ? { value: 'Normal', type: 'positive' } : { value: 'Alert', type: 'negative' },
+          icon: 'fas fa-flask'
+        },
+        { 
+          label: 'Depth Range', 
+          value: `${minDepth.toFixed(1)}-${maxDepth.toFixed(1)}m`, 
+          color: '#607D8B',
+          change: null,
+          icon: 'fas fa-arrows-alt-v'
+        }
+      ];
+
+      kpiContainer.innerHTML = '';
+      kpis.forEach(kpi => {
+        const card = document.createElement('div');
+        card.className = 'kpi-card';
+        card.style.setProperty('--kpi-color', kpi.color);
+        
+        card.innerHTML = `
+          <i class="${kpi.icon}" style="font-size: 1.5em; color: ${kpi.color}; margin-bottom: 10px;"></i>
+          <div class="kpi-value">${kpi.value}</div>
+          <div class="kpi-label">${kpi.label}</div>
+          ${kpi.change ? `<div class="kpi-change ${kpi.change.type}">${kpi.change.value}</div>` : ''}
+        `;
+        
+        kpiContainer.appendChild(card);
+      });
+    }
+
+    // Update map with lake location
+    function updateMap() {
+      if (!map || filteredData.length === 0) return;
+
+      // Clear existing markers
+      map.eachLayer(layer => {
+        if (layer instanceof L.CircleMarker) {
+          map.removeLayer(layer);
+        }
+      });
+
+      const lat = filteredData[0].latitude;
+      const lon = filteredData[0].longitude;
+      
+      map.setView([lat, lon], 14);
+
+      L.circleMarker([lat, lon], {
+        radius: 15,
+        color: '#4CAF50',
+        fillColor: '#4CAF50',
+        fillOpacity: 0.6,
+        weight: 3
+      }).addTo(map).bindPopup(`
+        <div style="text-align: center;">
+          <h4>${currentLake}</h4>
+          <p><strong>Samples:</strong> ${filteredData.length}</p>
+          <p><strong>Depth Range:</strong> ${Math.min(...filteredData.map(d => d.depth_m)).toFixed(1)}m - ${Math.max(...filteredData.map(d => d.depth_m)).toFixed(1)}m</p>
+        </div>
+      `);
+    }
+
+    // Render all charts
+    function renderCharts() {
+      const depths = filteredData.map(d => d.depth_m);
+      const temps = filteredData.map(d => d.water_temperature_c);
+      const oxygen = filteredData.map(d => d.dissolved_oxygen_mg_l);
+      const ph = filteredData.map(d => d.ph);
+
+      // Temperature vs Depth Profile (moved to bottom section)
+      Plotly.newPlot('tempChart', [{
+        x: temps,
+        y: depths,
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: { 
+          color: temps,
+          colorscale: 'RdYlBu_r',
+          size: 8,
+          colorbar: { title: 'Temperature (°C)' }
+        },
+        line: { color: '#FF9800', width: 2 },
+        name: 'Temperature Profile'
+      }], {
+        title: { text: 'Temperature vs Depth Profile', font: { size: 18 } },
+        yaxis: { 
+          autorange: 'reversed', 
+          title: 'Depth (m)',
+          gridcolor: '#f0f0f0'
+        },
+        xaxis: { 
+          title: 'Temperature (°C)',
+          gridcolor: '#f0f0f0'
+        },
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { t: 50, r: 40, b: 50, l: 50 }
+      }, {
+        responsive: true,
+        displayModeBar: false
+      });
+
+      // Dissolved Oxygen vs Depth
+      Plotly.newPlot('oxygenChart', [{
+        x: oxygen,
+        y: depths,
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: { 
+          color: oxygen,
+          colorscale: 'Blues',
+          size: 8,
+          colorbar: { title: 'Oxygen (mg/L)' }
+        },
+        line: { color: '#2196F3', width: 2 },
+        name: 'Oxygen Profile'
+      }], {
+        title: { text: 'Dissolved Oxygen vs Depth', font: { size: 16 } },
+        yaxis: { 
+          autorange: 'reversed', 
+          title: 'Depth (m)',
+          gridcolor: '#f0f0f0'
+        },
+        xaxis: { 
+          title: 'Dissolved Oxygen (mg/L)',
+          gridcolor: '#f0f0f0'
+        },
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { t: 40, r: 40, b: 40, l: 40 }
+      }, {
+        responsive: true,
+        displayModeBar: false
+      });
+
+      // pH vs Depth
+      /*Plotly.newPlot('phChart', [{
+        x: ph,
+        y: depths,
+        type: 'scatter',
+        mode: 'lines+markers',
+        marker: { 
+          color: ph,
+          colorscale: 'Viridis',
+          size: 8,
+          colorbar: { title: 'pH' }
+        },
+        line: { color: '#9C27B0', width: 2 },
+        name: 'pH Profile'
+      }], {
+        title: { text: 'pH vs Depth', font: { size: 16 } },
+        yaxis: { 
+          autorange: 'reversed', 
+          title: 'Depth (m)',
+          gridcolor: '#f0f0f0'
+        },
+        xaxis: { 
+          title: 'pH',
+          gridcolor: '#f0f0f0'
+        },
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { t: 40, r: 40, b: 40, l: 40 }
+      }, {
+        responsive: true,
+        displayModeBar: false
+      });*/
+      
+      // Correlation Chart
+      renderCorrelationChart();
+    }
+
+    // Render correlation chart
+    function renderCorrelationChart() {
+      const temps = filteredData.map(d => d.water_temperature_c);
+      const oxygen = filteredData.map(d => d.dissolved_oxygen_mg_l);
+      const ph = filteredData.map(d => d.ph);
+      const depths = filteredData.map(d => d.depth_m);
+
+      // Temperature vs Oxygen scatter
+      Plotly.newPlot('correlationChart', [{
+        x: temps,
+        y: oxygen,
+        type: 'scatter',
+        mode: 'markers',
+        marker: {
+          size: 10,
+          color: depths,
+          colorscale: 'Viridis',
+          colorbar: { title: 'Depth (m)' },
+          opacity: 0.7
+        },
+        text: depths.map(d => `Depth: ${d.toFixed(1)}m`),
+        hovertemplate: '<b>Temp:</b> %{x:.1f}°C<br><b>Oxygen:</b> %{y:.1f} mg/L<br>%{text}<extra></extra>',
+        name: 'Temp vs Oxygen'
+      }], {
+        title: { text: 'Temperature vs Dissolved Oxygen', font: { size: 16 } },
+        xaxis: { 
+          title: 'Temperature (°C)',
+          gridcolor: '#f0f0f0'
+        },
+        yaxis: { 
+          title: 'Dissolved Oxygen (mg/L)',
+          gridcolor: '#f0f0f0'
+        },
+        plot_bgcolor: 'rgba(0,0,0,0)',
+        paper_bgcolor: 'rgba(0,0,0,0)',
+        margin: { t: 40, r: 40, b: 40, l: 40 }
+      }, {
+        responsive: true,
+        displayModeBar: false
+      });
+    }
+
+    // Render data table
+    /*function renderDataTable() {
+      const container = document.getElementById('dataTableContainer');
+      
+      if (filteredData.length === 0) {
+        container.innerHTML = '<p>No data available for the selected filters.</p>';
+        return;
+      }
+
+      const headers = [
+        'Depth (m)', 'Temperature (°C)', 'Dissolved Oxygen (mg/L)', 
+        'pH', 'Latitude', 'Longitude', 'Date'
+      ];
+
+      let tableHTML = `
+        <table class="data-table">
+          <thead>
+            <tr>
+              ${headers.map(h => `<th>${h}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      filteredData.forEach(row => {
+        tableHTML += `
+          <tr>
+            <td>${row.depth_m?.toFixed(1) || 'N/A'}</td>
+            <td>${row.water_temperature_c?.toFixed(1) || 'N/A'}</td>
+            <td>${row.dissolved_oxygen_mg_l?.toFixed(2) || 'N/A'}</td>
+            <td>${row.ph?.toFixed(2) || 'N/A'}</td>
+            <td>${row.latitude?.toFixed(4) || 'N/A'}</td>
+            <td>${row.longitude?.toFixed(4) || 'N/A'}</td>
+            <td>${row.sample_date || 'N/A'}</td>
+          </tr>
+        `;
+      });
+
+      tableHTML += '</tbody></table>';
+      container.innerHTML = tableHTML;
+    }*/
+
+    // Download filtered data
+    function downloadData() {
+      if (filteredData.length === 0) {
+        alert('No data to download. Please adjust your filters.');
+        return;
+      }
+
+      // Prepare data for export
+      const exportData = filteredData.map(row => ({
+        'Lake Name': currentLake,
+        'Depth (m)': row.depth_m,
+        'Temperature (°C)': row.water_temperature_c,
+        'Dissolved Oxygen (mg/L)': row.dissolved_oxygen_mg_l,
+        'pH': row.ph,
+        'Latitude': row.latitude,
+        'Longitude': row.longitude,
+        'Sample Date': row.sample_date || '',
+        'Data Type': row.data_type || ''
+      }));
+
+      // Convert to CSV
+      const csv = Papa.unparse(exportData);
+      
+      // Create and trigger download
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${currentLake.replace(/\s+/g, '_')}_water_quality_data.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Show success message
+      setTimeout(() => {
+        alert(`Successfully downloaded ${filteredData.length} records for ${currentLake}!`);
+      }, 100);
+    }
+
+    // Utility function to handle window resize
+    window.addEventListener('resize', () => {
+      if (document.getElementById('dashboardView').style.display !== 'none') {
+        // Redraw charts on resize
+        setTimeout(() => {
+          Plotly.Plots.resize('tempChart');
+          Plotly.Plots.resize('oxygenChart');
+          Plotly.Plots.resize('correlationChart');
+        }, 100);
+      }
+    });
+  </script>
+</body>
+</html>
